@@ -8,15 +8,24 @@ readonly SCRIPT_DIR
 readonly SETTINGS_FILE="$SCRIPT_DIR/settings.json"
 readonly TEMPLATE_FILE="$SCRIPT_DIR/auto-ffmpeg.plist.template"
 
-command -v jq >/dev/null || { echo "jq required: brew install jq" >&2; exit 1; }
+command -v jq >/dev/null || {
+  echo "jq required: brew install jq" >&2
+  exit 1
+}
 
 readonly label="com.auto-ffmpeg"
 homebrew_path=$(jq -r '.homebrew_path' "$SETTINGS_FILE")
 
 # Check against the PATH the agent will actually run with
 readonly agent_path="$homebrew_path:/usr/bin:/bin"
-PATH="$agent_path" command -v jq >/dev/null || { echo "jq not found in $homebrew_path" >&2; exit 1; }
-PATH="$agent_path" command -v ffmpeg >/dev/null || { echo "ffmpeg not found in $homebrew_path" >&2; exit 1; }
+PATH="$agent_path" command -v jq >/dev/null || {
+  echo "jq not found in $homebrew_path" >&2
+  exit 1
+}
+PATH="$agent_path" command -v ffmpeg >/dev/null || {
+  echo "ffmpeg not found in $homebrew_path" >&2
+  exit 1
+}
 
 # Screen recordings save wherever screenshots do
 watch_dir=$(defaults read com.apple.screencapture location 2>/dev/null || true)

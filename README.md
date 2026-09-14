@@ -1,15 +1,6 @@
 # auto-ffmpeg
 
-Auto-compresses new macOS screen recordings (`Screen Recording*.mov`) to `.webm`. 
-A LaunchAgent watches your capture directory and runs whenever a new recording is made.
-
-## How it works
-
-- `install.sh` renders `auto-ffmpeg.plist.template` from `settings.json` and loads the LaunchAgent (`com.auto-ffmpeg`).
-- The agent watches your capture directory and runs `auto-ffmpeg.sh <capture_dir>` on changes.
-- `auto-ffmpeg.sh` compresses each new recording, moves the original to `~/.Trash`, and opens the folder when done.
-
-The capture directory is both watched and written to. `install.sh` reads it from `com.apple.screencapture location`, falling back to `~/Desktop`, and bakes it into the plist file.
+Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm`. 
 
 ## Requirements
 
@@ -21,36 +12,47 @@ The capture directory is both watched and written to. `install.sh` reads it from
 ./install.sh
 ```
 
-- Run once to set up - it checks `ffmpeg` and `jq` are visible from `homebrew_path` before loading the agent
-- The agent runs the scripts from this folder directly, so keep the folder where it is (or re-run `install.sh` after moving it)
-- Re-run after changing `homebrew_path`, moving this folder, or changing your macOS screen-capture location
-- The other options are read fresh on every run, so they take effect without reinstalling
+- Run once to set up - it also checks `ffmpeg` and `jq` are available 
+- Survives reboots, no reinstall needed
+- The agent runs the scripts from this folder directly, so keep the folder where it is
+- Re-run after changing `homebrew_path`, moving this folder, or changing your screen-capture location
+- The other options take effect without reinstalling
 
 ## Settings (`settings.json`)
 
 | Key | Meaning |
 | --- | --- |
-| `homebrew_path` | Homebrew bin dir (e.g. `/opt/homebrew/bin`) |
-| `recording_prefix` | Filename prefix - matched and stripped from the output name - leave blank to match every `.mov` in capture dir |
+| `homebrew_path` | Homebrew bin dir |
+| `recording_prefix` | Prefix to match and strip from the output name - blank matches every `.mov` |
 | `max_height_px` | Caps output height - never upscales |
-| `video_quality_crf` | VP9 quality: lower = better quality/bigger files, higher = worse/smaller |
+| `video_quality_crf` | VP9 quality: lower = better quality |
 | `audio_bitrate_kbps` | Opus audio bitrate |
+| `reveal_in_finder` | `true` highlights the new `.webm` in Finder when done, `false` runs silently |
+
+Also turn off "Show Floating Thumbnail" in screen-capture Options, as that delays the `.mov` file hitting the folder, and therefore the conversion as well.
+
+## How it works
+
+- `install.sh` renders `auto-ffmpeg.plist.template` from `settings.json` and loads the LaunchAgent (`com.auto-ffmpeg`)
+- The agent watches your capture directory and runs `auto-ffmpeg.sh <capture_dir>` on changes
+- `auto-ffmpeg.sh` compresses each new `.mov`, moves original to `~/.Trash`, and optionally reveals new `.webm` in Finder
+
+The capture directory is both watched and written to. `install.sh` reads it from `com.apple.screencapture location`, falling back to `~/Desktop`.
 
 ## Notes
 
 - Originals go to `~/.Trash`, not hard deleted
 - Any change in the capture directory triggers a run, screenshots included - though runs with nothing to do exit immediately
-- launchd runs one instance at a time - a second recording that lands mid-run is picked up by the automatic re-run after exit
-- Screen recordings are already complete when the script sees it, but as a safety net the script still checks the file size is unchanged for 2s before encoding (gives up on a file that's still being written to after 60s)
-- Encodes go to a hidden `.part` file first, so a failed run never leaves a broken `.webm` behind - it's deleted if ffmpeg fails, and if the script is killed mid-encode the leftover `.part` is overwritten next run
+- Runs one instance at a time - a second recording that appears mid-run is picked up by the automatic re-run after exit
+- Screen recordings are complete when the script sees it, but a safety net checks the file size is unchanged for 2s before encoding
+- Encodes go to a `.part` file first, so a failed run never leaves a broken `.webm` - it's deleted if ffmpeg fails
 - Logs: `/tmp/auto-ffmpeg.out.log`, `/tmp/auto-ffmpeg.err.log`.
 
 ## Uninstall
 
 ```bash
-launchctl bootout gui/$UID/com.auto-ffmpeg
-rm ~/Library/LaunchAgents/com.auto-ffmpeg.plist
-rm -f /tmp/auto-ffmpeg.out.log /tmp/auto-ffmpeg.err.log
+./uninstall.sh
 ```
 
-Then delete this folder if you no longer need it.
+- Removes everything: unloads the agent and removes its plist and logs
+- Delete this folder to finish

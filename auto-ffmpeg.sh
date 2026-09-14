@@ -18,13 +18,17 @@ readonly SETTINGS_FILE="$SCRIPT_DIR/settings.json"
 
 # Fails fast on a missing key instead of passing "null" to ffmpeg
 read_setting() {
-  jq -er ".$1" "$SETTINGS_FILE" || { echo "settings.json: missing $1" >&2; exit 1; }
+  jq -er ".$1" "$SETTINGS_FILE" || {
+    echo "settings.json: missing $1" >&2
+    exit 1
+  }
 }
 
 RECORDING_PREFIX=$(jq -r '.recording_prefix // ""' "$SETTINGS_FILE")
 MAX_HEIGHT=$(read_setting max_height_px)
 CRF=$(read_setting video_quality_crf)
 AUDIO_KBPS=$(read_setting audio_bitrate_kbps)
+REVEAL_IN_FINDER=$(jq -r '.reveal_in_finder // false' "$SETTINGS_FILE")
 
 # Stops us compressing a half-written recording
 # Gives up after 60s
@@ -44,7 +48,7 @@ wait_until_stable() {
   return 1
 }
 
-compressed_any=false
+last_output=""
 
 shopt -s nullglob
 
@@ -75,13 +79,14 @@ for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
     # Trash keeps the original recoverable
     # -n never overwrites a same-named file already there
     mv -n "$recording" "$HOME/.Trash/"
-    compressed_any=true
+    last_output="$output"
   else
     rm -f "$partial_output"
   fi
 done
 
-# Only reveal results when something was compressed
-if [[ "$compressed_any" == true ]]; then
-  open "$capture_dir"
+# Only reveal results when enabled and something was compressed
+# -R highlights the newest webm in Finder
+if [[ "$REVEAL_IN_FINDER" == true && -n "$last_output" ]]; then
+  open -R "$last_output"
 fi
