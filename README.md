@@ -12,10 +12,11 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 ./install.sh
 ```
 
-- Run once to set up - it also checks `ffmpeg` and `jq` are available 
+- Run once to set up - it also checks `ffmpeg` and `jq` are available
+- Creates `capture_dir` and sets it as your screen-capture location (see "Screen capture location" below to change this)
 - Survives reboots, no reinstall needed
 - The agent runs the scripts from this folder directly, so keep the folder where it is
-- Re-run after changing `homebrew_path`, moving this folder, or changing your screen-capture location
+- Re-run after changing `homebrew_path` or `capture_dir`, or moving this folder
 - The other options take effect without reinstalling
 
 ## Settings (`settings.json`)
@@ -23,6 +24,7 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 | Key | Meaning |
 | --- | --- |
 | `homebrew_path` | Homebrew bin dir |
+| `capture_dir` | Where screen captures save - see below |
 | `recording_prefix` | Prefix to match and strip from the output name - blank matches every `.mov` |
 | `max_height_px` | Caps output height - never upscales |
 | `video_quality_crf` | VP9 quality: lower = better quality |
@@ -31,13 +33,17 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 
 Also turn off "Show Floating Thumbnail" in screen-capture Options, as that delays the `.mov` file hitting the folder, and therefore the conversion as well.
 
+### Screen capture location
+
+`install.sh` sets `capture_dir` from `settings.json` as the macOS screen-capture location, so screenshots save there too, not just recordings. You can change this, but `~/Desktop`/`~/Documents`/etc (and anything inside them) are TCC-protected, so use a folder directly under `~` like the default `~/Recordings`.
+
 ## How it works
 
 - `install.sh` renders `auto-ffmpeg.plist.template` from `settings.json` and loads the LaunchAgent (`com.auto-ffmpeg`)
-- The agent watches your capture directory and runs `auto-ffmpeg.sh <capture_dir>` on changes
+- The agent watches `capture_dir` and runs `auto-ffmpeg.sh <capture_dir>` on changes
 - `auto-ffmpeg.sh` compresses each new `.mov`, moves original to `~/.Trash`, and optionally reveals new `.webm` in Finder
 
-The capture directory is both watched and written to. `install.sh` reads it from `com.apple.screencapture location`, falling back to `~/Desktop`.
+`capture_dir` is both watched and written to - `install.sh` sets it via `com.apple.screencapture location`.
 
 ## Notes
 
@@ -54,5 +60,5 @@ The capture directory is both watched and written to. `install.sh` reads it from
 ./uninstall.sh
 ```
 
-- Removes everything: unloads the agent and removes its plist and logs
-- Delete this folder to finish
+- Unloads the agent and removes its plist and logs
+- Leaves `capture_dir` and the screen-capture location in place - delete the folder if unwanted, and run `defaults delete com.apple.screencapture location` to restore the Desktop default

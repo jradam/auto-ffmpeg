@@ -27,10 +27,27 @@ PATH="$agent_path" command -v ffmpeg >/dev/null || {
   exit 1
 }
 
-# Screen recordings save wherever screenshots do
-watch_dir=$(defaults read com.apple.screencapture location 2>/dev/null || true)
+# Desktop/Documents/Downloads are TCC-protected so the agent can't read them
+# Default is a folder at the user root which needs no permissions
+watch_dir=$(jq -r '.capture_dir // ""' "$SETTINGS_FILE")
+watch_dir="${watch_dir:-~/Recordings}" # Empty string counts as unset
 watch_dir="${watch_dir/#\~/$HOME}" # Expand a leading ~
-watch_dir="${watch_dir:-$HOME/Desktop}"
+readonly watch_dir
+
+case "$watch_dir" in
+"$HOME/Desktop" | "$HOME/Desktop/"* | "$HOME/Documents" | "$HOME/Documents/"* | "$HOME/Downloads" | "$HOME/Downloads/"*)
+  echo "capture_dir can't be under ~/Desktop, ~/Documents or ~/Downloads (TCC-protected) - use a new folder directly under ~ like ~/Recordings" >&2
+  exit 1
+  ;;
+esac
+
+mkdir -p "$watch_dir"
+
+# Screen recordings save wherever screenshots do
+defaults write com.apple.screencapture location "$watch_dir"
+# Picks up the new location without a logout
+killall SystemUIServer 2>/dev/null || true
+
 script_path="$SCRIPT_DIR/auto-ffmpeg.sh"
 
 readonly PLIST_DEST="$HOME/Library/LaunchAgents/$label.plist"
@@ -56,4 +73,4 @@ sed \
 launchctl bootout "gui/$UID/$label" 2>/dev/null || true
 launchctl bootstrap "gui/$UID" "$PLIST_DEST"
 
-echo "Loaded $label (watching $watch_dir)"
+echo "Loaded $label (screen captures now save to $watch_dir)"

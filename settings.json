@@ -1,5 +1,6 @@
 {
   "homebrew_path": "/opt/homebrew/bin",
+  "capture_dir": "~/Recordings",
   "recording_prefix": "Screen Recording ",
   "max_height_px": 1080,
   "video_quality_crf": 32,
