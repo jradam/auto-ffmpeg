@@ -26,6 +26,7 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 | `capture_dir` | Where screen captures save - see below |
 | `recording_prefix` | Prefix to match and strip from the output name - blank matches every `.mov` |
 | `max_height_px` | Caps output height - never upscales |
+| `max_fps` | Caps output frame rate - Mac recordings are 120fps, which is slow to encode |
 | `video_quality_crf` | VP9 quality: lower = better quality |
 | `audio_bitrate_kbps` | Opus audio bitrate |
 | `reveal_in_finder` | `true` highlights the new `.webm` in Finder when done, `false` runs silently |

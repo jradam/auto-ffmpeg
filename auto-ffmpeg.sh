@@ -26,6 +26,7 @@ read_setting() {
 
 RECORDING_PREFIX=$(jq -r '.recording_prefix // ""' "$SETTINGS_FILE")
 MAX_HEIGHT=$(read_setting max_height_px)
+MAX_FPS=$(read_setting max_fps)
 CRF=$(read_setting video_quality_crf)
 AUDIO_KBPS=$(read_setting audio_bitrate_kbps)
 REVEAL_IN_FINDER=$(jq -r '.reveal_in_finder // false' "$SETTINGS_FILE")
@@ -68,11 +69,13 @@ for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
   fi
 
   # -b:v 0 makes CRF the sole quality control for VP9
-  # scale keeps width even (-2) and caps height without upscaling
+  # -row-mt 1 -threads 0 uses every core, -cpu-used 4 trades a little quality for a much faster encode
+  # fps caps the frame rate, scale keeps width even (-2) and caps height without upscaling
   # Hidden .part file means a failed run never leaves a webm that blocks a retry
   if ffmpeg -nostdin -y -loglevel warning -nostats -i "$recording" \
     -c:v libvpx-vp9 -crf "$CRF" -b:v 0 \
-    -vf "scale=-2:'min($MAX_HEIGHT,ih)'" \
+    -row-mt 1 -cpu-used 4 -threads 0 \
+    -vf "fps=$MAX_FPS,scale=-2:'min($MAX_HEIGHT,ih)'" \
     -c:a libopus -b:a "${AUDIO_KBPS}k" \
     -f webm "$partial_output"; then
     mv "$partial_output" "$output"

@@ -3,6 +3,7 @@
   "capture_dir": "~/Recordings",
   "recording_prefix": "Screen Recording ",
   "max_height_px": 1080,
+  "max_fps": 30,
   "video_quality_crf": 32,
   "audio_bitrate_kbps": 96,
   "reveal_in_finder": true
