@@ -13,9 +13,8 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 ```
 
 - Run once to set up - it also checks `ffmpeg` and `jq` are available
-- Creates `capture_dir` and sets it as your screen-capture location (see "Screen capture location" below to change this)
+- Creates `~/Recordings` and sets it as your screen-capture location (see "Screen capture location" below for more info)
 - Survives reboots, no reinstall needed
-- The agent runs the scripts from this folder directly, so keep the folder where it is
 - Re-run after changing `homebrew_path` or `capture_dir`, or moving this folder
 - The other options take effect without reinstalling
 
@@ -35,7 +34,7 @@ Also turn off "Show Floating Thumbnail" in screen-capture Options, as that delay
 
 ### Screen capture location
 
-`install.sh` sets `capture_dir` from `settings.json` as the macOS screen-capture location, so screenshots save there too, not just recordings. You can change this, but `~/Desktop`/`~/Documents`/etc (and anything inside them) are TCC-protected, so use a folder directly under `~` like the default `~/Recordings`.
+`install.sh` sets `capture_dir` from `settings.json` as the macOS screen-capture location, so screenshots save there too, not just recordings. You can change this location, but Desktop/Documents/etc (and anything inside them) are TCC-protected, so use a folder directly under `~` like the default `~/Recordings`.
 
 ## How it works
 
