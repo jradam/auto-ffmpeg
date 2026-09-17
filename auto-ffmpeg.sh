@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Auto-compresses new Mac screen recordings to webm
+# Auto-compresses new Mac screen recordings to webm or mp4
 # Triggered by a LaunchAgent watching the screen capture dir
 # launchd runs one instance at a time and re-runs after exit if triggered mid-run
 set -euo pipefail
@@ -30,6 +30,37 @@ MAX_FPS=$(read_setting max_fps)
 CRF=$(read_setting video_quality_crf)
 AUDIO_KBPS=$(read_setting audio_bitrate_kbps)
 REVEAL_IN_FINDER=$(jq -r '.reveal_in_finder // false' "$SETTINGS_FILE")
+FORMAT=$(jq -r '.format // "webm"' "$SETTINGS_FILE")
+
+# video_quality_crf is on the VP9 scale (0-63), x264 uses 0-51 so scale it down
+readonly X264_CRF_MULTIPLIER=0.72
+
+# Per-format codec args
+case "$FORMAT" in
+webm)
+  # -b:v 0 makes CRF the sole quality control for VP9
+  # -row-mt 1 -threads 0 uses every core, -cpu-used 4 trades a little quality for a much faster encode
+  codec_args=(
+    -c:v libvpx-vp9 -crf "$CRF" -b:v 0
+    -row-mt 1 -cpu-used 4 -threads 0
+    -c:a libopus -b:a "${AUDIO_KBPS}k"
+  )
+  ;;
+mp4)
+  x264_crf=$(awk -v crf="$CRF" -v mult="$X264_CRF_MULTIPLIER" 'BEGIN { printf "%d", crf * mult + 0.5 }')
+  # yuv420p keeps QuickTime and browsers happy, faststart lets playback begin before download finishes
+  codec_args=(
+    -c:v libx264 -crf "$x264_crf" -preset fast -pix_fmt yuv420p
+    -c:a aac -b:a "${AUDIO_KBPS}k"
+    -movflags +faststart
+  )
+  ;;
+*)
+  echo "settings.json: format must be webm or mp4, got '$FORMAT'" >&2
+  exit 1
+  ;;
+esac
+readonly codec_args
 
 # Stops us compressing a half-written recording
 # Gives up after 60s
@@ -56,8 +87,8 @@ shopt -s nullglob
 for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
   name=$(basename "$recording" .mov)
   name="${name#"$RECORDING_PREFIX"}"
-  output="$capture_dir/$name.webm"
-  partial_output="$capture_dir/.$name.webm.part"
+  output="$capture_dir/$name.$FORMAT"
+  partial_output="$capture_dir/.$name.$FORMAT.part"
 
   # Already compressed
   if [[ -f "$output" ]]; then
@@ -68,16 +99,13 @@ for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
     continue
   fi
 
-  # -b:v 0 makes CRF the sole quality control for VP9
-  # -row-mt 1 -threads 0 uses every core, -cpu-used 4 trades a little quality for a much faster encode
-  # fps caps the frame rate, scale keeps width even (-2) and caps height without upscaling
-  # Hidden .part file means a failed run never leaves a webm that blocks a retry
+  # fps caps the frame rate, scale caps height without upscaling and keeps both dimensions even (x264 rejects odd sizes)
+  # Hidden .part file means a failed run never leaves an output that blocks a retry
+  # -f is needed because .part hides the extension ffmpeg would otherwise infer from
   if ffmpeg -nostdin -y -loglevel warning -nostats -i "$recording" \
-    -c:v libvpx-vp9 -crf "$CRF" -b:v 0 \
-    -row-mt 1 -cpu-used 4 -threads 0 \
-    -vf "fps=$MAX_FPS,scale=-2:'min($MAX_HEIGHT,ih)'" \
-    -c:a libopus -b:a "${AUDIO_KBPS}k" \
-    -f webm "$partial_output"; then
+    "${codec_args[@]}" \
+    -vf "fps=$MAX_FPS,scale=-2:'2*trunc(min($MAX_HEIGHT,ih)/2)'" \
+    -f "$FORMAT" "$partial_output"; then
     mv "$partial_output" "$output"
     # Trash keeps the original recoverable
     # -n never overwrites a same-named file already there
@@ -89,7 +117,7 @@ for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
 done
 
 # Only reveal results when enabled and something was compressed
-# -R highlights the newest webm in Finder
+# -R highlights the newest output in Finder
 if [[ "$REVEAL_IN_FINDER" == true && -n "$last_output" ]]; then
   open -R "$last_output"
 fi
