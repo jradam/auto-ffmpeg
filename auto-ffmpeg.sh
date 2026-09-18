@@ -31,6 +31,7 @@ CRF=$(read_setting video_quality_crf)
 AUDIO_KBPS=$(read_setting audio_bitrate_kbps)
 REVEAL_IN_FINDER=$(jq -r '.reveal_in_finder // false' "$SETTINGS_FILE")
 FORMAT=$(jq -r '.format // "webm"' "$SETTINGS_FILE")
+RECORDING_TYPE=$(jq -r '.recording_type // "mov"' "$SETTINGS_FILE")
 
 # video_quality_crf is on the VP9 scale (0-63), x264 uses 0-51 so scale it down
 readonly X264_CRF_MULTIPLIER=0.72
@@ -62,6 +63,31 @@ mp4)
 esac
 readonly codec_args
 
+# Allows spaces after commas
+IFS=',' read -ra RECORDING_TYPES <<<"${RECORDING_TYPE// /}"
+readonly RECORDING_TYPES
+
+if [[ ${#RECORDING_TYPES[@]} -eq 0 ]]; then
+  echo "settings.json: recording_type must list mov and/or mp4" >&2
+  exit 1
+fi
+
+for recording_type in "${RECORDING_TYPES[@]}"; do
+  case "$recording_type" in
+  mov | mp4) ;;
+  *)
+    echo "settings.json: recording_type entries must be mov or mp4, got '$recording_type'" >&2
+    exit 1
+    ;;
+  esac
+
+  # Output would land on its own input
+  if [[ "$recording_type" == "$FORMAT" && -z "$RECORDING_PREFIX" ]]; then
+    echo "settings.json: recording_prefix is required when recording_type includes the output format ($FORMAT)" >&2
+    exit 1
+  fi
+done
+
 # Stops us compressing a half-written recording
 # Gives up after 60s
 wait_until_stable() {
@@ -84,36 +110,38 @@ last_output=""
 
 shopt -s nullglob
 
-for recording in "$capture_dir/$RECORDING_PREFIX"*.mov; do
-  name=$(basename "$recording" .mov)
-  name="${name#"$RECORDING_PREFIX"}"
-  output="$capture_dir/$name.$FORMAT"
-  partial_output="$capture_dir/.$name.$FORMAT.part"
+for recording_type in "${RECORDING_TYPES[@]}"; do
+  for recording in "$capture_dir/$RECORDING_PREFIX"*."$recording_type"; do
+    name=$(basename "$recording" ".$recording_type")
+    name="${name#"$RECORDING_PREFIX"}"
+    output="$capture_dir/$name.$FORMAT"
+    partial_output="$capture_dir/.$name.$FORMAT.part"
 
-  # Already compressed
-  if [[ -f "$output" ]]; then
-    continue
-  fi
+    # Already compressed
+    if [[ -f "$output" ]]; then
+      continue
+    fi
 
-  if ! wait_until_stable "$recording"; then
-    continue
-  fi
+    if ! wait_until_stable "$recording"; then
+      continue
+    fi
 
-  # fps caps the frame rate, scale caps height without upscaling and keeps both dimensions even (x264 rejects odd sizes)
-  # Hidden .part file means a failed run never leaves an output that blocks a retry
-  # -f is needed because .part hides the extension ffmpeg would otherwise infer from
-  if ffmpeg -nostdin -y -loglevel warning -nostats -i "$recording" \
-    "${codec_args[@]}" \
-    -vf "fps=$MAX_FPS,scale=-2:'2*trunc(min($MAX_HEIGHT,ih)/2)'" \
-    -f "$FORMAT" "$partial_output"; then
-    mv "$partial_output" "$output"
-    # Trash keeps the original recoverable
-    # -n never overwrites a same-named file already there
-    mv -n "$recording" "$HOME/.Trash/"
-    last_output="$output"
-  else
-    rm -f "$partial_output"
-  fi
+    # fps caps the frame rate, scale caps height without upscaling and keeps both dimensions even (x264 rejects odd sizes)
+    # Hidden .part file means a failed run never leaves an output that blocks a retry
+    # -f is needed because .part hides the extension ffmpeg would otherwise infer from
+    if ffmpeg -nostdin -y -loglevel warning -nostats -i "$recording" \
+      "${codec_args[@]}" \
+      -vf "fps=$MAX_FPS,scale=-2:'2*trunc(min($MAX_HEIGHT,ih)/2)'" \
+      -f "$FORMAT" "$partial_output"; then
+      mv "$partial_output" "$output"
+      # Trash keeps the original recoverable
+      # -n never overwrites a same-named file already there
+      mv -n "$recording" "$HOME/.Trash/"
+      last_output="$output"
+    else
+      rm -f "$partial_output"
+    fi
+  done
 done
 
 # Only reveal results when enabled and something was compressed

@@ -24,7 +24,8 @@ Auto-compresses new macOS screen recordings (`Screen Recording *.mov`) to `.webm
 | --- | --- |
 | `homebrew_path` | Homebrew bin dir |
 | `capture_dir` | Where screen captures save - see below |
-| `recording_prefix` | Prefix to match and strip from the output name - blank matches every `.mov` |
+| `recording_prefix` | Prefix to match and strip from the output name - blank matches every file of a watched type |
+| `recording_type` | Comma-separated input types to watch: e.g. `mov,mp4` - an `mp4` input with `mp4` output is just compressed, and needs a non-blank `recording_prefix` so the output name differs from the input |
 | `format` | `webm` (VP9/Opus) or `mp4` (H.264/AAC) |
 | `max_height_px` | Caps output height - never upscales |
 | `max_fps` | Caps output frame rate - Mac recordings are 120fps, which is slow to encode |
@@ -42,7 +43,7 @@ Also turn off "Show Floating Thumbnail" in screen-capture Options, as that delay
 
 - `install.sh` renders `auto-ffmpeg.plist.template` from `settings.json` and loads the LaunchAgent (`com.auto-ffmpeg`)
 - The agent watches `capture_dir` and runs `auto-ffmpeg.sh <capture_dir>` on changes
-- `auto-ffmpeg.sh` compresses each new `.mov`, moves original to `~/.Trash`, and optionally reveals the new file in Finder
+- `auto-ffmpeg.sh` compresses each new recording of a watched type, moves original to `~/.Trash`, and optionally reveals the new file in Finder
 
 `capture_dir` is both watched and written to - `install.sh` sets it via `com.apple.screencapture location`.
 
